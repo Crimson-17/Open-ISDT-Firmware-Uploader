@@ -1,0 +1,36 @@
+name: Build Windows app
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [master]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: microsoft/setup-msbuild@v2
+
+      - name: Patch sources for build
+        shell: bash
+        run: |
+          # Removes the unfinished statement in Form_Update.cs
+          sed -i -E '/^[[:space:]]*smartLink\.RxBuffer[[:space:]]*$/d' SCU/Form_Update.cs
+          # Targets .NET Framework 4.8 (4.5.2 is not on the runner)
+          sed -i 's/<TargetFrameworkVersion>v4\.5\.2</<TargetFrameworkVersion>v4.8</' SCU.csproj
+          ! grep -qE '^[[:space:]]*smartLink\.RxBuffer[[:space:]]*$' SCU/Form_Update.cs
+          grep -q '<TargetFrameworkVersion>v4.8<' SCU.csproj
+
+      - name: Build
+        run: msbuild SCU.csproj /p:Configuration=Release /p:Platform=x64 /verbosity:minimal
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: SCU-windows-x64
+          path: bin/Release/SCU.exe
+          if-no-files-found: error
